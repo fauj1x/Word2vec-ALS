@@ -85,6 +85,4 @@ pip install numpy pandas gensim implicit seaborn matplotlib scikit-learn
 
 ---
 
-## 📜 Lisensi / License
-MIT License – silakan gunakan dan modifikasi untuk keperluan riset atau proyek Anda.  
-MIT License – feel free to use and modify for your research or projects.
+
