@@ -118,6 +118,8 @@ else:
     plt.title("Distribusi Rating")
     plt.show()
 
+
+
 # -----------------------------------------------------------
 # CONTENT-BASED (Word2Vec)
 # -----------------------------------------------------------
@@ -172,6 +174,40 @@ if 'product_name' in df.columns and not df['product_name'].isnull().all():
     print(content_based_recommendations(example_prod, top_k=5))
 else:
     print("No 'product_name' column present -- skip CB example")
+
+def plot_content_based_recommendations(product_title, top_k=5, figsize=(10,6), truncate=60):
+    """
+    Plot vertical bar chart untuk rekomendasi Content-Based (Word2Vec).
+    - product_title: nama produk acuan
+    - top_k: jumlah rekomendasi
+    - truncate: potongan panjang nama produk untuk label di x-axis
+    """
+    recs = content_based_recommendations(product_title, top_k=top_k)
+    if isinstance(recs, pd.DataFrame) and not recs.empty:
+        recs = recs.copy()
+        recs['label'] = recs['product_name'].str.slice(0, truncate).str.rstrip()
+
+        plt.figure(figsize=figsize)
+        bars = plt.bar(range(len(recs)), recs['rating'])
+        plt.xticks(range(len(recs)), recs['label'], rotation=45, ha='right')
+        plt.ylabel('Rating')
+        plt.ylim(0, 5.1)
+        plt.title(f'Content-Based Recommendations for:\n{product_title[:truncate]}')
+
+        # tambahkan angka rating di atas bar
+        for i, v in enumerate(recs['rating'].values):
+            plt.text(i, v + 0.05, f"{v:.2f}", ha='center', va='bottom', fontsize=9)
+
+        plt.tight_layout()
+        plt.show()
+    else:
+        print(f"No content-based recommendations found for: {product_title}")
+
+# Contoh pemanggilan
+example_prod = df['product_name'].iloc[0]
+print("Example content-based recommendations for:", example_prod)
+print(content_based_recommendations(example_prod, top_k=5))
+plot_content_based_recommendations(example_prod, top_k=5)
 
 import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -271,6 +307,46 @@ example_user = df['user_id'].iloc[0]
 print("ALS recommendations (name, score):", als_recommend(example_user, top_k=5))
 print(als_recommend(example_user, top_k=5))
 
+def plot_als_recommendations(user_id, top_k=5, figsize=(10,6), truncate=60):
+    """
+    Plot vertical bar chart of ALS recommendations for a given user_id.
+    - user_id: user identifier (string) as in df['user_id']
+    - top_k: number of recommendations
+    - truncate: character limit for product labels displayed on x-axis
+    """
+    recs = als_recommend(user_id, top_k=top_k)
+    if not recs:
+        print(f"No ALS recommendations found for user_id: {user_id}")
+        return
+
+    # Build DataFrame
+    rec_df = pd.DataFrame(recs, columns=['product_name', 'score'])
+    # Replace None scores with 0 for plotting (or keep NaN and handle)
+    rec_df['score'] = rec_df['score'].fillna(0.0).astype(float)
+    # sort by score descending
+    rec_df = rec_df.sort_values(by='score', ascending=False).reset_index(drop=True)
+    rec_df['label'] = rec_df['product_name'].str.slice(0, truncate).str.rstrip()
+
+    # plot
+    plt.figure(figsize=figsize)
+    bars = plt.bar(range(len(rec_df)), rec_df['score'])
+    plt.xticks(range(len(rec_df)), rec_df['label'], rotation=45, ha='right')
+    plt.ylabel('ALS recommendation score')
+    # set y-limits a bit above max score for annotation space
+    ymax = rec_df['score'].max() * 1.15 if rec_df['score'].max() > 0 else 1.0
+    plt.ylim(0, ymax)
+    plt.title(f'ALS recommendations for user (truncated):\n{str(user_id)[:truncate]}')
+    # annotate values above bars
+    for i, v in enumerate(rec_df['score'].values):
+        plt.text(i, v + (ymax * 0.02), f"{v:.3f}", ha='center', va='bottom', fontsize=9)
+    plt.tight_layout()
+    plt.show()
+
+# Example ALS recommendation + plot
+example_user = df['user_id'].iloc[0]
+print("ALS recommendations (name, score):", als_recommend(example_user, top_k=5))
+plot_als_recommendations(example_user, top_k=5)
+
 # -----------------------------------------------------------
 # Simple evaluation & top/bottom products
 # -----------------------------------------------------------
@@ -290,3 +366,74 @@ plt.title('Top & Bottom Products by Mean Rating')
 plt.legend()
 plt.tight_layout()
 plt.show()
+
+def hybrid_recommend(user_id, product_title, top_k=5, alpha=0.5):
+    """
+    Hybrid recommendation = kombinasi Content-Based (Word2Vec) + Collaborative Filtering (ALS).
+    - alpha: bobot 0–1. Semakin tinggi alpha, semakin dominan content-based.
+    """
+    # CBF similarity scores
+    if product_title not in df['product_name'].values:
+        return []
+    idx = df.index[df['product_name'] == product_title][0]
+    v = product_embeddings[idx].reshape(1, -1)
+    sims = cosine_similarity(v, product_embeddings)[0]
+
+    # ALS scores
+    if user_id not in user_id_to_code:
+        return []
+    ucode = user_id_to_code[user_id]
+    user_items = ratings_matrix.tocsr()[ucode]
+    als_ids, als_scores = als_model.recommend(ucode, user_items, N=len(item_code_to_name))
+
+    # Buat dict ALS score
+    als_dict = {int(i): float(s) for i, s in zip(als_ids, als_scores)}
+
+    # Gabungkan skor
+    hybrid_scores = []
+    for item_code, name in item_code_to_name.items():
+        sim_score = sims[item_code] if item_code < len(sims) else 0
+        als_score = als_dict.get(item_code, 0)
+        final_score = alpha * sim_score + (1 - alpha) * als_score
+        hybrid_scores.append((name, final_score))
+
+    # Urutkan dan ambil top_k
+    hybrid_scores = sorted(hybrid_scores, key=lambda x: x[1], reverse=True)
+    return hybrid_scores[:top_k]
+
+
+def plot_hybrid_recommendations(user_id, product_title, top_k=5, alpha=0.5, figsize=(10,6), truncate=60):
+    """
+    Plot vertical bar chart untuk hasil Hybrid Recommendation.
+    """
+    recs = hybrid_recommend(user_id, product_title, top_k=top_k, alpha=alpha)
+    if not recs:
+        print("Tidak ada hasil rekomendasi hybrid.")
+        return
+
+    rec_df = pd.DataFrame(recs, columns=['product_name', 'score'])
+    rec_df['label'] = rec_df['product_name'].str.slice(0, truncate).str.rstrip()
+
+    plt.figure(figsize=figsize)
+    bars = plt.bar(range(len(rec_df)), rec_df['score'])
+    plt.xticks(range(len(rec_df)), rec_df['label'], rotation=45, ha='right')
+    plt.ylabel('Hybrid score')
+    ymax = rec_df['score'].max() * 1.15 if rec_df['score'].max() > 0 else 1.0
+    plt.ylim(0, ymax)
+    plt.title(f'Hybrid Recommendations (α={alpha})\nUser: {str(user_id)[:truncate]} | Product: {product_title[:truncate]}')
+
+    # Tambahkan nilai di atas bar
+    for i, v in enumerate(rec_df['score'].values):
+        plt.text(i, v + (ymax * 0.02), f"{v:.3f}", ha='center', va='bottom', fontsize=9)
+
+    plt.tight_layout()
+    plt.show()
+
+
+# Contoh pemanggilan
+example_user = df['user_id'].iloc[0]
+example_prod = df['product_name'].iloc[0]
+
+print("Hybrid recommendations:")
+print(hybrid_recommend(example_user, example_prod, top_k=5, alpha=0.5))
+plot_hybrid_recommendations(example_user, example_prod, top_k=5, alpha=0.5)
