@@ -15,7 +15,7 @@ Proyek juga dilengkapi dengan visualisasi bar chart untuk setiap metode.
 
 ---
 
-## Alur Kerja Kode
+## Alur Kerja Sistem
 
 ### 1. Persiapan & Import Library
 - Menginstal dan memuat library: `numpy`, `pandas`, `gensim`, `implicit`, `matplotlib`, `sklearn`, dll.
