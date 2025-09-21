@@ -171,6 +171,7 @@ Bottom 5 Products by Mean Rating:
 <img width="994" height="590" alt="image" src="https://github.com/user-attachments/assets/14dde5ef-4890-447e-9ae5-71c5693b6a34" />
 <img width="996" height="590" alt="image" src="https://github.com/user-attachments/assets/a5f69071-bba3-4c8b-bf3a-a4fdb6d8fd1c" />
 <img width="1346" height="590" alt="image" src="https://github.com/user-attachments/assets/d2918d57-3852-4c54-980d-cded1111e3b4" />
+<img width="1346" height="590" alt="image" src="https://github.com/user-attachments/assets/d9b69af4-a267-49bf-a64d-2a8cb331104d" />
 <img width="1560" height="1410" alt="image" src="https://github.com/user-attachments/assets/c7b5f682-2d4c-4dee-9009-bd13ade6dc63" />
 
 
